@@ -17,12 +17,11 @@ provider "aws" {
 provider "datadog" {
   api_key = "<datadog_api_key>"
   app_key = "<datadog_app_key>"
-  api_url = "<datadog_api_url>"
+  api_url = "https://app.datadoghq.eu"
 }
 
 
 resource "aws_instance" "base" {
-  # count         = 1 # Incase we need to deploy multiple environments
   ami           = "ami-0faab6bdbac9486fb" # This image is for Ubuntu
   instance_type = "t2.micro"
   tags = {
@@ -32,15 +31,38 @@ resource "aws_instance" "base" {
 }
 
 resource "datadog_monitor" "cpumonitor" {
-  # count   = length(aws_instance.base)
   name    = "cpu monitor ${aws_instance.base.id}"
   type    = "metric alert"
   message = "CPU usage alert"
-  query   = "avg(last_1m):avg:system.cpu.system{host:${aws_instance.base.id}} by {host} > 4"
+  query   = "avg(last_1h):avg:system.cpu.system{*} by {host} > 75"
 
   monitor_thresholds {
-    warning  = 2
-    critical = 4
+    warning  = 50 #in %
+    critical = 75 # in %
+  }
+}
+
+resource "datadog_monitor" "memorymonitor" {
+  name    = "memory monitor ${aws_instance.base.id}"
+  type    = "metric alert"
+  message = "Memory usage alert"
+  query   = "avg(last_1h):avg:system.mem.used{*} by {host} > 2000000000"
+
+  monitor_thresholds {
+    warning  = 50000000 #in bits
+    critical = 2000000000 #in bits
+  }
+}
+
+resource "datadog_monitor" "diskmonitor" {
+  name    = "disk monitor ${aws_instance.base.id}"
+  type    = "metric alert"
+  message = "Disk usage alert"
+  query   = "avg(last_1h):avg:system.disk.used{*} by {host} > 2000000000"
+
+  monitor_thresholds {
+    warning  = 999000000 #in bits
+    critical = 2000000000 #in bits
   }
 }
 
@@ -50,87 +72,43 @@ resource "datadog_dashboard" "ordered_dashboard" {
   layout_type = "ordered"
 
   widget {
+    query_value_definition {
+      request {
+        q          = "avg:system.uptime{*}"
+        aggregator = "avg"
+      }
+      autoscale  = true
+      precision  = "4"
+      text_align = "right"
+      title      = "System Uptime"
+      live_span  = "1h"
+    }
+  }
+
+  widget {
     alert_graph_definition {
       alert_id  = datadog_monitor.cpumonitor.id
       viz_type  = "timeseries"
-      title     = "CPU Usage on ${aws_instance.base.tags.Name}"
+      title     = "CPU Usage"
       live_span = "1h"
     }
   }
-  
 
   widget {
-    query_value_definition {
-      request {
-        q          = "avg:system.mem.used{env:staging}"
-        aggregator = "sum"
-        conditional_formats {
-          comparator = "<"
-          value      = "0.75"
-          palette    = "white_on_green"
-        }
-        conditional_formats {
-          comparator = ">"
-          value      = "0.75"
-          palette    = "white_on_red"
-        }
-      }
-      autoscale   = true
-      custom_unit = "xx"
-      precision   = "4"
-      text_align  = "right"
-      title       = "Memory Usage"
-      live_span   = "1h"
+    alert_graph_definition {
+      alert_id  = datadog_monitor.memorymonitor.id
+      viz_type  = "timeseries"
+      title     = "Memory Usage"
+      live_span = "1h"
     }
   }
 
   widget {
-    query_value_definition {
-      request {
-        q          = "avg:system.disk.used{env:staging}"
-        aggregator = "sum"
-        conditional_formats {
-          comparator = "<"
-          value      = "0.75"
-          palette    = "white_on_green"
-        }
-        conditional_formats {
-          comparator = ">"
-          value      = "0.75"
-          palette    = "white_on_red"
-        }
-      }
-      autoscale   = true
-      custom_unit = "xx"
-      precision   = "4"
-      text_align  = "right"
-      title       = "Disk Usage"
-      live_span   = "1h"
-    }
-  }
-
-  widget {
-    query_value_definition {
-      request {
-        q          = "avg:system.net.bytes_rcvd{env:staging}, avg:system.net.bytes_sent{env:staging}"
-        aggregator = "sum"
-        conditional_formats {
-          comparator = "<"
-          value      = "0.75"
-          palette    = "white_on_green"
-        }
-        conditional_formats {
-          comparator = ">"
-          value      = "0.75"
-          palette    = "white_on_red"
-        }
-      }
-      autoscale   = true
-      custom_unit = "xx"
-      precision   = "4"
-      text_align  = "right"
-      title       = "Network Traffic"
-      live_span   = "1h"
+    alert_graph_definition {
+      alert_id  = datadog_monitor.diskmonitor.id
+      viz_type  = "timeseries"
+      title     = "Disk Usage"
+      live_span = "1h"
     }
   }
 }
