@@ -3,3 +3,4 @@
 main_local.tf 
 terraform.tfstate
 terraform.tfstate.backup
+variables.tf

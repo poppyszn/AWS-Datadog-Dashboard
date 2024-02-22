@@ -15,14 +15,14 @@ provider "aws" {
 }
 
 provider "datadog" {
-  api_key = "<datadog_api_key>"
-  app_key = "<datadog_app_key>"
+  api_key = var.dd_api_key
+  app_key = var.dd_app_key
   api_url = "https://app.datadoghq.eu"
 }
 
 
 resource "aws_instance" "base" {
-  ami           = "ami-0faab6bdbac9486fb" # This image is for Ubuntu
+  ami           = var.server_image # This image is for Ubuntu
   instance_type = "t2.micro"
   tags = {
     Name = "MyUbuntuDevEnv"
